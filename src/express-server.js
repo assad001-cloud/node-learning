@@ -1,47 +1,38 @@
-// load express module
-const express = require('express');
-const app = express();
+// load express
+var express = require('express');
+var app = express();
 
-// take port from env or use 3000
-const PORT = process.env.PORT || 3000;
+// load custom logger
+var logger = require('./middleware/logger');
 
+// load routes
+var apiRoutes = require('./routes/api');
+var webRoutes = require('./routes/web');
 
-// simple logging middleware
+// take port from env or 3000
+var PORT = process.env.PORT || 3000;
+
+// use json parser
+app.use(express.json());
+
+// use logger middleware
+app.use(logger);
+
+// add custom header for all response
 app.use(function (req, res, next) {
-  console.log(req.method + " " + req.url);
+  res.setHeader('X-Powered-By', 'NodeJS-Learning');
   next();
 });
 
+// use routes
+app.use('/', webRoutes);
+app.use('/api', apiRoutes);
 
-// home route
-app.get('/', function (req, res) {
-  res.status(200).send('Welcome to my Express server');
-});
-
-
-// status route
-app.get('/api/status', function (req, res) {
-  res.status(200).json({
-    status: "ok",
-    uptime: process.uptime()
-  });
-});
-
-
-// time route
-app.get('/api/time', function (req, res) {
-  res.status(200).json({
-    time: new Date().toISOString()
-  });
-});
-
-
-// basic error handler
+// error handler
 app.use(function (err, req, res, next) {
   console.error(err.stack);
   res.status(500).json({ error: 'Something broke' });
 });
-
 
 // start server
 app.listen(PORT, function () {
