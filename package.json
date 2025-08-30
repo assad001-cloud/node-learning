@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "script1": "node script1.js"
+    "script1": "node script1.js",
+    "dev": "node src/express-server.js"
+
   },
   "keywords": [],
   "author": "",
