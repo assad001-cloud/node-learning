@@ -1,20 +1,23 @@
-// api routes
-var express = require('express');
-var router = express.Router();
+const express = require("express");
+const router = express.Router();
 
-// status route
-router.get('/status', function (req, res) {
+// check server status
+router.get("/status", (req, res) => {
   res.status(200).json({
     status: "ok",
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
-// time route
-router.get('/time', function (req, res) {
+// get current server time
+router.get("/time", (req, res) => {
   res.status(200).json({
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
   });
 });
+
+// attach book routes
+const booksRouter = require("./books");
+router.use("/books", booksRouter);
 
 module.exports = router;

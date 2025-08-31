@@ -1,10 +1,15 @@
-// simple logger middleware
-// it will show time, method, url and how long it take
+
+// simple logger that shows method, url and response time
 module.exports = function (req, res, next) {
-  var start = Date.now();
-  res.on('finish', function () {
-    var time = Date.now() - start;
-    console.log(new Date().toISOString(), req.method, req.url, time + "ms");
+  const start = Date.now();
+  res.on("finish", () => {
+    const time = Date.now() - start;
+    console.log(
+      new Date().toISOString(),
+      req.method,
+      req.url,
+      `${time}ms`
+    );
   });
   next();
 };
