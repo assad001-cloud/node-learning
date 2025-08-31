@@ -7,12 +7,14 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "script1": "node script1.js",
     "dev": "node src/express-server.js"
-
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "chalk": "^5.6.0"
+    "chalk": "^5.6.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1"
   }
 }

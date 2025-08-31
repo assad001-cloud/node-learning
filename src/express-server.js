@@ -1,43 +1,55 @@
+require("dotenv").config();
 const express = require("express");
-const app = express();
-const port = 3000;
+const fs = require("fs");
+const path = require("path");
+const rateLimit = require("express-rate-limit");
 
-// bring in middleware
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware
 const logger = require("./middleware/logger");
 
-// bring in routes
+// Routes
 const apiRoutes = require("./routes/api");
-const webRoutes = require("./routes/web");
 
-// setup middleware
-app.use(express.json({
-  strict: true,
-  verify: (req, res, buf) => {
-    try {
-      JSON.parse(buf);
-    } catch (e) {
-      throw new Error("Malformed JSON");
-    }
-  }
-})); // lets us read JSON from requests and handle malformed JSON
-app.use(logger); // our own logger
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: process.env.RATE_LIMIT || 100,
+  message: { error: "Too many requests, try again later" },
+});
+app.use(limiter);
 
-// setup routes
-app.use("/api", apiRoutes);
-app.use("/", webRoutes);
+// JSON parser & logger
+app.use(express.json());
+app.use(logger);
 
-// global error handler
+// Load books data from JSON file
+const dataPath = path.join(__dirname, "books-data.json");
+if (fs.existsSync(dataPath)) {
+  global.books = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
+} else {
+  global.books = [];
+}
+
+// Routes with API versioning
+app.use("/api/v1", apiRoutes);
+
+// Global error handler
 app.use((err, req, res, next) => {
-  console.error(err);
-  if (err.message === "Malformed JSON") {
-    return res.status(400).json({ error: "Malformed JSON request" });
-  }
-  res.status(err.status || 500).json({
-    error: err.message || "Internal Server Error"
-  });
+  console.error(err.stack);
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
-// start the server
+// Save books on shutdown
+const saveData = () => {
+  fs.writeFileSync(dataPath, JSON.stringify(global.books, null, 2));
+};
+process.on("exit", saveData);
+process.on("SIGINT", () => process.exit());
+
+// Start server
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });

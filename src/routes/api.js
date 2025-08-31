@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-// check server status
+// Status endpoint
 router.get("/status", (req, res) => {
   res.status(200).json({
     status: "ok",
@@ -9,14 +9,12 @@ router.get("/status", (req, res) => {
   });
 });
 
-// get current server time
+// Time endpoint
 router.get("/time", (req, res) => {
-  res.status(200).json({
-    time: new Date().toISOString(),
-  });
+  res.status(200).json({ time: new Date().toISOString() });
 });
 
-// attach book routes
+// Book routes
 const booksRouter = require("./books");
 router.use("/books", booksRouter);
 

@@ -1,5 +1,4 @@
-
-// simple logger that shows method, url and response time
+// Simple logger that shows method, URL, and response time
 module.exports = function (req, res, next) {
   const start = Date.now();
   res.on("finish", () => {
