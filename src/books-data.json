@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "title": "Lake of the Ozarks: My Surreal Summers in a Vanishing America",
+    "author": "Bill Geist",
+    "year": 2019,
+    "genre": "Memoir"
+  },
+  {
+    "id": 2,
+    "title": "The Great Train Robbery",
+    "author": "Michael Crichton",
+    "year": 1975,
+    "genre": "Historical Fiction"
+  }
+]
