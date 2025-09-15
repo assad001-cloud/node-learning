@@ -1,45 +1,36 @@
 const express = require("express");
-const logger = require("./middleware/logger");
-const webRoutes = require("./routes/web");
-const apiRoutes = require("./routes/api");
-const booksRoutes = require("./routes/books"); // import books API
-
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// log requests
-app.use(logger);
+// Import middlewares and routes
+const logger = require("./middleware/logger"); // Custom logger middleware
+const apiRoutes = require("./routes/api");      // API routes .
+const webRoutes = require("./routes/web");      // Web routes (homepage)
+const bookRoutes = require("./routes/books");   // Books API routes
 
-// parse json request body
+
+// Middleware: Parse incoming JSON requests
 app.use(express.json());
 
-// add custom header
-app.use((req, res, next) => {
-  res.setHeader("X-Powered-By", "NodeJS-Learning");
-  next();
-});
 
-// web routes
-app.use("/", webRoutes);
+// Middleware: Log every request with method, URL, status, and response time
+app.use(logger);
 
-// api routes
-app.use("/api", apiRoutes);
 
-// books API routes
-app.use("/api", booksRoutes);
+// Routes
+app.use("/", webRoutes);       // Web homepage route
+app.use("/api", apiRoutes);    // General API routes
+app.use("/api/books", bookRoutes); // Books API routes
 
-// handle not found routes
-app.use((req, res) => {
-  res.status(404).json({ error: "Route not found" });
-});
 
-// handle server errors
+// Global error handler (catches errors from any route or middleware)
 app.use((err, req, res, next) => {
-  console.error("Error:", err.stack);
-  res.status(500).json({ error: "Internal Server Error" });
+  console.error("Error:", err.message);
+  res.status(500).json({ error: "Something went wrong!" });
 });
 
-// start server
+
+// Start server and listen on specified port
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(` Server is running on http://localhost:${PORT}`);
 });
