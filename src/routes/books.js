@@ -4,6 +4,7 @@ const router = express.Router();
 const Book = require("../models/Book");
 const User = require("../models/User");
 
+// -------------------- Helper -------------------- //
 // Validate book input
 function validateBook(data) {
   const { title, author, year, genre } = data;
@@ -31,7 +32,7 @@ function validateBook(data) {
 
 // -------------------- Routes -------------------- //
 
-// Get all books with optional sorting and pagination
+// GET all books (optional pagination & sorting)
 router.get("/", async (req, res) => {
   try {
     let { sort, order, page, limit } = req.query;
@@ -50,19 +51,18 @@ router.get("/", async (req, res) => {
       query = query.skip((page - 1) * limit).limit(limit);
     }
 
-    const books = await query.populate("userId", "username email");
+    const books = await query.populate("userId", "username email"); // Include user info
     res.status(200).json(books);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Search books by title and/or author
+// Search books by title or author (case-insensitive, partial match)
 router.get("/search", async (req, res) => {
   try {
     const { title, author } = req.query;
-    let filter = {};
-
+    const filter = {};
     if (title) filter.title = new RegExp(title, "i");
     if (author) filter.author = new RegExp(author, "i");
 
@@ -73,7 +73,7 @@ router.get("/search", async (req, res) => {
   }
 });
 
-// Get one book by ID
+// GET book by ID
 router.get("/:id", async (req, res) => {
   try {
     const book = await Book.findById(req.params.id).populate("userId", "username email");
@@ -84,25 +84,25 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Create a new book
+// CREATE a new book
 router.post("/", async (req, res) => {
   try {
     const errors = validateBook(req.body);
-    if (errors.length > 0) return res.status(400).json({ errors });
+    if (errors.length) return res.status(400).json({ errors });
 
-    // For now, associate with a default user (replace with actual logged-in user later)
+    // Associate with a default user if no user is provided
     let defaultUser = await User.findOne();
     if (!defaultUser) {
       defaultUser = await User.create({
-        username: "asad",
-        email: "asadnouman@gmail.com",
-        password: "Asad123", // should be hashed in real-world
-        firstName: "Asad",
-        lastName: "Nouman",
+        username: "defaultuser",
+        email: "default@example.com",
+        password: "Default123",
+        firstName: "Default",
+        lastName: "User",
       });
     }
 
-    // Check duplicate title
+    // Check for duplicate title
     const exists = await Book.findOne({ title: req.body.title });
     if (exists) return res.status(400).json({ error: "Book with this title already exists" });
 
@@ -118,21 +118,15 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Update book by ID
+// UPDATE book by ID
 router.put("/:id", async (req, res) => {
   try {
     const errors = validateBook(req.body);
-    if (errors.length > 0) return res.status(400).json({ errors });
+    if (errors.length) return res.status(400).json({ errors });
 
     const updatedBook = await Book.findByIdAndUpdate(
       req.params.id,
-      {
-        title: req.body.title,
-        author: req.body.author,
-        year: req.body.year,
-        genre: req.body.genre,
-        updatedAt: new Date(),
-      },
+      { ...req.body, updatedAt: new Date() },
       { new: true }
     );
 
@@ -143,7 +137,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// Delete book by ID
+// DELETE book by ID
 router.delete("/:id", async (req, res) => {
   try {
     const deletedBook = await Book.findByIdAndDelete(req.params.id);
@@ -154,7 +148,7 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// Get total count of books
+// GET total count of books
 router.get("/count/all", async (req, res) => {
   try {
     const count = await Book.countDocuments();
