@@ -17,12 +17,13 @@ const logger = require("./middleware/logger");
 const apiRoutes = require("./routes/api");
 const webRoutes = require("./routes/web");
 const bookRoutes = require("./routes/books");
+const userRoutes = require("./routes/users");
 
 
 // Middleware
 app.use(express.json());
 app.use(logger);
-
+app.use("/api/v1/users", userRoutes);
 
 // Rate limiting
 const limiter = rateLimit({
