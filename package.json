@@ -1,19 +1,31 @@
 {
   "name": "node-journey",
   "version": "1.0.0",
-  "description": "Project Title : \"Node part2 - Express Tasks\"",
+  "description": "Node Part 2 - Express Tasks with Database Setup (Migrate, Seed, Drop)",
   "main": "src/express-server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/express-server.js",
-    "start": "node src/express-server.js"
+    "start": "node src/express-server.js",
+    "db:migrate": "node src/scripts/migrate.js",
+    "db:seed": "node src/scripts/seed.js",
+    "db:drop": "node src/scripts/drop.js",
+    "db:reset": "npm run --silent db:drop && npm run --silent db:migrate && npm run --silent db:seed"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "node",
+    "express",
+    "mongodb",
+    "mongoose",
+    "migration",
+    "seeding"
+  ],
+  "author": "Asad Nouman",
   "license": "ISC",
   "dependencies": {
-    "chalk": "^5.6.0",
-    "dotenv": "^17.2.2",
+    "bcrypt": "^6.0.0",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.5",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "mongoose": "^8.18.1"

@@ -1,14 +1,13 @@
 const mongoose = require("mongoose");
 
-// Book Schema
+// Simple Book schema
 const bookSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     author: { type: String, required: true },
-    year: { type: Number, required: true },
+    publishedYear: { type: Number },
     genre: { type: String },
-    isbn: { type: String, unique: true, sparse: true }, // optional unique
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // relation
+    available: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

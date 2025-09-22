@@ -1,15 +1,15 @@
 const mongoose = require("mongoose");
 
-// User Schema
+// Simple User schema
 const userSchema = new mongoose.Schema(
   {
     username: { type: String, required: true, unique: true },
-    email: { type: String, required: true, unique: true, match: /.+\@.+\..+/ },
-    password: { type: String, required: true }, // will be hashed later
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true }, // plain text for now
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
   },
-  { timestamps: true } // auto adds createdAt & updatedAt
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("User", userSchema);
