@@ -11,14 +11,13 @@ connectDB();
 
 const PORT = process.env.PORT || 3000;
 
-
 // Import middlewares and routes
 const logger = require("./middleware/logger");
+const errorHandler = require("./middleware/errorHandler"); // NEW: global error handler
 const apiRoutes = require("./routes/api");
 const webRoutes = require("./routes/web");
 const bookRoutes = require("./routes/books");
 const userRoutes = require("./routes/users");
-
 
 // Middleware
 app.use(express.json());
@@ -33,19 +32,13 @@ const limiter = rateLimit({
 });
 app.use("/api/v1", limiter);
 
-
 // Routes
 app.use("/", webRoutes);
 app.use("/api/v1", apiRoutes);
 app.use("/api/v1/books", bookRoutes);
 
-
 // Global error handler
-app.use((err, req, res, next) => {
-  console.error("Error:", err.message);
-  res.status(500).json({ error: "Something went wrong!" });
-});
-
+app.use(errorHandler); // REPLACED inline with reusable errorHandler middleware
 
 // Start the server
 app.listen(PORT, () => {
