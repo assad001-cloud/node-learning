@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "title": "White Boy Rick: My Time As an Undercover Teenage Drug Informant for the FBI",
+    "author": "Richard Wershe Jr. & Scott Burnstein",
+    "year": 2018,
+    "genre": "Non-fiction / True Crime"
+  },
+  {
+    "id": 2,
+    "title": "Blacklist",
+    "author": "Sara Paretsky",
+    "year": 2003,
+    "genre": "Crime / Mystery"
+  },
+  {
+    "id": 3,
+    "title": "The Girl with the Dragon Tattoo",
+    "author": "Stieg Larsson",
+    "year": 2005,
+    "genre": "Crime / Mystery / Thriller"
+  }
+]
