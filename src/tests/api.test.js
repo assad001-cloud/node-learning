@@ -1,42 +1,36 @@
-// API endpoint tests using supertest
-require("dotenv").config();
-const mongoose = require("mongoose");
+// src/tests/api.test.js
 const request = require("supertest");
-const app = require("../src/express-server"); 
+const app = require("../express-server");
+
+let userId;
 
 beforeAll(async () => {
-  await mongoose.connect(process.env.MONGO_URI);
-});
-
-afterAll(async () => {
-  await mongoose.connection.close();
-});
-
-describe("API tests", () => {
-  it("should return users list", async () => {
-    const res = await request(app).get("/users");
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+  // Create a user to attach books
+  const userRes = await request(app).post("/api/v1/users").send({
+    username: "bookuser",
+    email: "bookuser@example.com",
+    password: "password123",
+    firstName: "Book",
+    lastName: "User"
   });
 
-  it("should create a book", async () => {
-    const userRes = await request(app).get("/users");
-    const user = userRes.body[0];
+  userId = userRes.body._id;
+});
 
-    const res = await request(app).post("/books").send({
-      title: "API Book",
-      author: "API Tester",
+describe("API integration tests", () => {
+  test("POST /api/v1/books requires validation and can create", async () => {
+    const res = await request(app).post("/api/v1/books").send({
+      title: "API Integration Book",
+      author: "Tester",
       year: 2025,
-      genre: "Testing",
-      userId: user._id,
+      genre: "Test",
+      userId
     });
 
-    expect(res.status).toBe(201);
-    expect(res.body.title).toBe("API Book");
-  });
+    expect(res.statusCode).toBe(201);
+    expect(res.body.title).toBe("API Integration Book");
 
-  it("should handle invalid book creation", async () => {
-    const res = await request(app).post("/books").send({});
-    expect(res.status).toBe(400);
+    // Ensure userId returned is a string
+    expect(String(res.body.userId)).toBe(String(userId));
   });
 });

@@ -1,46 +1,26 @@
-// Load environment variables
+// src/express-server.js
 require("dotenv").config();
-
 const express = require("express");
-const rateLimit = require("express-rate-limit");
-const connectDB = require("./config/database"); // DB connection
 const app = express();
-
-// Connect to MongoDB before starting server
-connectDB();
-
-const PORT = process.env.PORT || 3000;
-
-// Import middlewares and routes
-const logger = require("./middleware/logger");
-const errorHandler = require("./middleware/errorHandler"); // NEW: global error handler
-const apiRoutes = require("./routes/api");
-const webRoutes = require("./routes/web");
-const bookRoutes = require("./routes/books");
-const userRoutes = require("./routes/users");
+const logger = require("./utils/logger");
+const mongoose = require("./config/database");
 
 // Middleware
 app.use(express.json());
-app.use(logger);
-app.use("/api/v1/users", userRoutes);
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 100,
-  message: { error: "Too many requests, please try again later." },
-});
-app.use("/api/v1", limiter);
 
 // Routes
-app.use("/", webRoutes);
-app.use("/api/v1", apiRoutes);
-app.use("/api/v1/books", bookRoutes);
+app.use("/api/v1/books", require("./routes/books"));
+app.use("/api/v1/users", require("./routes/users"));
+app.use("/api/v1", require("./routes/api"));
+app.use("/", require("./routes/web"));
 
-// Global error handler
-app.use(errorHandler); // REPLACED inline with reusable errorHandler middleware
+// Error handler
+app.use(require("./middleware/errorHandler"));
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(` Server running on http://localhost:${PORT}`);
-});
+// Start server only if NOT in test environment
+if (process.env.NODE_ENV !== "test") {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+}
+
+module.exports = app; // export app for tests

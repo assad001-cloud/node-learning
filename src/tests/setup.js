@@ -1,21 +1,18 @@
-require("dotenv").config();
-const mongoose = require("mongoose");
+// src/tests/setup.js
+const mongoose = require("../config/database");
 
 beforeAll(async () => {
-  const uri = process.env.MONGO_URI_TEST || process.env.MONGO_URI;
-  await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+  if (mongoose.connection.readyState !== 1) {
+    await new Promise((resolve, reject) => {
+      mongoose.connection.once("open", resolve);
+      mongoose.connection.once("error", reject);
+    });
+  }
 });
 
 afterAll(async () => {
-  await mongoose.connection.db.dropDatabase(); // drop test db after all tests
-  await mongoose.connection.close();
-});
-
-beforeEach(async () => {
-  // clear all collections before each test
-  const collections = Object.keys(mongoose.connection.collections);
-  for (const collectionName of collections) {
-    const collection = mongoose.connection.collections[collectionName];
-    await collection.deleteMany({});
+  if (mongoose.connection.readyState === 1) {
+    await mongoose.connection.dropDatabase();
+    await mongoose.connection.close();
   }
 });

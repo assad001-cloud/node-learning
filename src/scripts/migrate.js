@@ -1,26 +1,34 @@
-// Creates the collections if they don't exist
+// src/scripts/migrate.js
+// Ensures MongoDB collections & indexes are created for models
+
 require("dotenv").config();
 const mongoose = require("mongoose");
+const logger = require("../utils/logger");
 const User = require("../models/User");
 const Book = require("../models/Book");
 
-async function migrate() {
+const targetArg = process.argv[2];
+const uri = targetArg === "test" ? process.env.MONGO_URI_TEST : process.env.MONGO_URI;
+
+if (!uri) {
+  console.error("No MONGO_URI provided. Aborting migration.");
+  process.exit(1);
+}
+
+(async () => {
   try {
-    const uri = process.env.MONGO_URI;
-    console.log("[Migrate] Connecting to:", uri);
+    logger.info("[Migrate] Connecting to DB...", { uriPreview: uri.slice(0, 60) + "..." });
+    await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
-    await mongoose.connect(uri);
-
-    // Ensure collections & indexes are created
+    // Initialize collections & indexes
     await User.init();
     await Book.init();
 
-    console.log("[Migrate] Migration complete: collections & indexes are ready.");
+    logger.info("[Migrate] Migration complete: collections & indexes ready.");
+    await mongoose.connection.close();
     process.exit(0);
   } catch (err) {
-    console.error("[Migrate] Error:", err.message);
+    logger.error("[Migrate] Error during migration", { message: err.message, stack: err.stack });
     process.exit(1);
   }
-}
-
-migrate();
+})();

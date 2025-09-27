@@ -1,31 +1,14 @@
-// This middleware logs method, url, status and response time
-const winston = require("winston");
+const { createLogger, format, transports } = require("winston");
 
-
-// Configure winston logger
-const logger = winston.createLogger({
+const logger = createLogger({
   level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json() // logs in structured JSON for better readability
+  format: format.combine(
+    format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    format.json()
   ),
   transports: [
-    new winston.transports.Console(), // log to console
-    new winston.transports.File({ filename: "logs/app.log" }) // also save logs to file
+    new transports.Console()
   ],
 });
 
-module.exports = (req, res, next) => {
-  const start = Date.now();
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    logger.info({
-      timestamp: new Date().toISOString(),
-      method: req.method,
-      url: req.originalUrl,
-      status: res.statusCode,
-      duration: `${duration}ms`,
-    });
-  });
-  next();
-};
+module.exports = logger;
