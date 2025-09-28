@@ -1,88 +1,56 @@
-// src/middleware/auth.js
-// Middlewares: requireAuth, optionalAuth, requireAdmin, requireOwnership
-
-const { verifyToken } = require("../config/jwt");
+const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// Extract token helpers
-function getTokenFromRequest(req) {
-  // Prefer Authorization header: Bearer <token>
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    return authHeader.slice(7);
-  }
-  // Fallback to cookie named 'token'
-  if (req.cookies && req.cookies.token) {
-    return req.cookies.token;
-  }
-  return null;
-}
-
-// Required authentication middleware
-async function requireAuth(req, res, next) {
+const requireAuth = async (req, res, next) => {
   try {
-    const token = getTokenFromRequest(req);
-    if (!token) return res.status(401).json({ error: true, message: "Authentication required" });
+    const token = req.headers.authorization?.split(" ")[1] || req.cookies.token;
+    if (!token) return res.status(401).json({ error: "Authentication required" });
 
-    const payload = verifyToken(token);
-    // Attach user minimal info (id + role) to req.user
-    const user = await User.findById(payload.id).select("-password");
-    if (!user) return res.status(401).json({ error: true, message: "User not found" });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select("-password");
+    if (!user) return res.status(401).json({ error: "Invalid user" });
 
     req.user = user;
-    req.token = token; // current token
     next();
   } catch (err) {
-    if (err.name === "TokenBlacklisted") return res.status(401).json({ error: true, message: "Token invalidated" });
-    return res.status(401).json({ error: true, message: "Invalid or expired token" });
+    console.error("Auth error:", err.message);
+    res.status(401).json({ error: "Invalid or expired token" });
   }
-}
-
-// Optional auth - attaches req.user if token valid, otherwise continues
-async function optionalAuth(req, res, next) {
-  try {
-    const token = getTokenFromRequest(req);
-    if (!token) return next();
-    const payload = verifyToken(token);
-    const user = await User.findById(payload.id).select("-password");
-    if (user) {
-      req.user = user;
-      req.token = token;
-    }
-    return next();
-  } catch (err) {
-    // ignore token errors for optional auth
-    return next();
-  }
-}
-
-// Require admin role
-function requireAdmin(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: true, message: "Authentication required" });
-  if (req.user.role !== "admin") return res.status(403).json({ error: true, message: "Admin access required" });
-  next();
-}
-
-// Require ownership: resourceUserId can be grabbed from params or body
-function requireOwnership(getResourceOwnerId) {
-  return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: true, message: "Authentication required" });
-    try {
-      const ownerId = getResourceOwnerId(req);
-      if (!ownerId) return res.status(400).json({ error: true, message: "Owner ID not provided" });
-      if (String(req.user._id) !== String(ownerId) && req.user.role !== "admin") {
-        return res.status(403).json({ error: true, message: "Forbidden - not owner" });
-      }
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
-}
-
-module.exports = {
-  requireAuth,
-  optionalAuth,
-  requireAdmin,
-  requireOwnership,
 };
+
+const optionalAuth = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1] || req.cookies.token;
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = await User.findById(decoded.id).select("-password");
+    }
+  } catch {
+    req.user = null;
+  }
+  next();
+};
+
+const requireOwnership = (model) => async (req, res, next) => {
+  try {
+    const resource = await model.findById(req.params.id);
+    if (!resource) return res.status(404).json({ error: "Resource not found" });
+
+    if (resource.user.toString() !== req.user._id.toString() && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    next();
+  } catch (err) {
+    console.error("Ownership error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ error: "Admin privileges required" });
+  }
+  next();
+};
+
+module.exports = { requireAuth, optionalAuth, requireOwnership, requireAdmin };

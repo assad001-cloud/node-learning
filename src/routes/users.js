@@ -1,24 +1,32 @@
 const express = require("express");
-const router = express.Router();
 const User = require("../models/User");
-const { validateUser } = require("../middleware/validate");
+const { requireAuth, optionalAuth, requireOwnership, requireAdmin } = require("../middleware/auth");
 
-// GET all users
-router.get("/", async (req, res, next) => {
-  try {
-    const users = await User.find().select("-password");
-    res.json(users);
-  } catch (err) { next(err); }
+const router = express.Router();
+
+// GET all users (admin only)
+router.get("/", requireAuth, requireAdmin, async (req, res) => {
+  const users = await User.find().select("-password");
+  res.json(users);
 });
 
-// POST create user
-router.post("/", validateUser, async (req, res, next) => {
-  try {
-    const { username, email, password, firstName, lastName } = req.body;
-    const user = new User({ username, email, password, firstName, lastName });
-    const saved = await user.save();
-    res.status(201).json({ ...saved.toObject(), password: undefined });
-  } catch (err) { next(err); }
+// GET user by id (optional auth)
+router.get("/:id", optionalAuth, async (req, res) => {
+  const user = await User.findById(req.params.id).select("-password");
+  if (!user) return res.status(404).json({ error: "User not found" });
+  res.json(user);
+});
+
+// UPDATE user (require ownership)
+router.put("/:id", requireAuth, requireOwnership(User), async (req, res) => {
+  const updated = await User.findByIdAndUpdate(req.params.id, req.body, { new: true }).select("-password");
+  res.json(updated);
+});
+
+// DELETE user (require ownership)
+router.delete("/:id", requireAuth, requireOwnership(User), async (req, res) => {
+  await User.findByIdAndDelete(req.params.id);
+  res.json({ message: "User deleted" });
 });
 
 module.exports = router;
