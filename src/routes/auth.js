@@ -1,166 +1,130 @@
 // src/routes/auth.js
-// Authentication routes: register, login, logout, profile GET/PUT
-
 const express = require("express");
-const router = express.Router();
-const { body, validationResult } = require("express-validator");
-const bcrypt = require("bcrypt");
 const User = require("../models/User");
-const { signToken, blacklistToken } = require("../config/jwt");
-const { requireAuth } = require("../middleware/auth");
+const bcrypt = require("bcryptjs");
+const { signAccessToken, signRefreshToken, verifyToken } = require("../config/jwt");
+const { registerValidators, loginValidators } = require("../middleware/validation");
+const { body } = require("express-validator");
+const router = express.Router();
 
-// Helper to return consistent error response for validation results
-function handleValidationErrors(req, res) {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ error: true, errors: errors.array().map(e => e.msg) });
-  }
-  return null;
-}
+// Simple in-memory refresh token store (for demo). Replace with DB in prod.
+const refreshTokenStore = new Set();
 
-// POST /api/v1/auth/register
-router.post(
-  "/register",
-  [
-    body("username").isLength({ min: 3 }).withMessage("username must be 3+ chars").trim().escape(),
-    body("email").isEmail().withMessage("invalid email").normalizeEmail(),
-    body("password").isLength({ min: 8 }).withMessage("password must be 8+ chars"),
-    body("firstName").isLength({ min: 1 }).withMessage("firstName required").trim().escape(),
-    body("lastName").isLength({ min: 1 }).withMessage("lastName required").trim().escape(),
-  ],
-  async (req, res, next) => {
-    try {
-      const validationError = handleValidationErrors(req, res);
-      if (validationError) return;
-
-      const { username, email, password, firstName, lastName } = req.body;
-
-      // Check duplicates
-      const existing = await User.findOne({ $or: [{ email }, { username }] });
-      if (existing) return res.status(409).json({ error: true, message: "username or email already exists" });
-
-      // Hash password
-      const hashed = await bcrypt.hash(password, 10);
-
-      const newUser = new User({ username, email, password: hashed, firstName, lastName });
-      await newUser.save();
-
-      // Sign token
-      const token = signToken({ id: newUser._id, role: newUser.role });
-
-      // Set httpOnly cookie
-      res.cookie("token", token, { httpOnly: true, maxAge: 24 * 3600 * 1000 });
-
-      // Return user without password
-      const userToReturn = newUser.toObject();
-      delete userToReturn.password;
-
-      return res.status(201).json({ token, user: userToReturn });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-// POST /api/v1/auth/login
-router.post(
-  "/login",
-  [
-    body("identifier").notEmpty().withMessage("email or username required"),
-    body("password").notEmpty().withMessage("password required"),
-  ],
-  async (req, res, next) => {
-    try {
-      const validationError = handleValidationErrors(req, res);
-      if (validationError) return;
-
-      // identifier can be email or username
-      const { identifier, password } = req.body;
-      const user = await User.findOne({
-        $or: [{ email: identifier }, { username: identifier }],
-      });
-
-      if (!user) return res.status(401).json({ error: true, message: "Invalid credentials" });
-
-      const match = await bcrypt.compare(password, user.password);
-      if (!match) return res.status(401).json({ error: true, message: "Invalid credentials" });
-
-      const token = signToken({ id: user._id, role: user.role });
-      res.cookie("token", token, { httpOnly: true, maxAge: 24 * 3600 * 1000 });
-
-      const userToReturn = user.toObject();
-      delete userToReturn.password;
-
-      return res.status(200).json({ token, user: userToReturn });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-// POST /api/v1/auth/logout
-router.post("/logout", requireAuth, (req, res) => {
+/**
+ * POST /api/v1/auth/register
+ * creates user, returns access token + refresh token in httpOnly cookie
+ */
+router.post("/register", registerValidators, async (req, res, next) => {
   try {
-    const token = req.token || (req.cookies && req.cookies.token);
-    if (token) {
-      blacklistToken(token);
-      res.clearCookie("token");
-    }
-    return res.json({ message: "Logged out" });
+    const { username, email, password, firstName, lastName } = req.body;
+    const user = new User({ username, email, password, firstName, lastName });
+    await user.save();
+
+    const accessToken = signAccessToken({ id: user._id });
+    const refreshToken = signRefreshToken({ id: user._id });
+    refreshTokenStore.add(refreshToken);
+
+    // set refresh token as httpOnly cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24 * 7 // match REFRESH_TOKEN_EXPIRES_IN
+    });
+
+    res.status(201).json({ token: accessToken, user: { id: user._id, username, email, firstName, lastName, role: user.role } });
   } catch (err) {
-    return res.status(500).json({ error: true, message: "Logout failed" });
+    next(err);
   }
 });
 
-// GET /api/v1/auth/profile
-router.get("/profile", requireAuth, async (req, res) => {
-  const user = req.user.toObject();
-  delete user.password;
-  res.json({ user });
+/**
+ * POST /api/v1/auth/login
+ * Accepts identifier(email|username) + password, returns access token + refresh cookie
+ */
+router.post("/login", loginValidators, async (req, res, next) => {
+  try {
+    const { identifier, password } = req.body;
+    const user = await User.findOne({ $or: [{ email: identifier }, { username: identifier }] });
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+    const ok = await user.comparePassword(password);
+    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+
+    const accessToken = signAccessToken({ id: user._id });
+    const refreshToken = signRefreshToken({ id: user._id });
+    refreshTokenStore.add(refreshToken);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24 * 7
+    });
+
+    res.json({ token: accessToken, user: { id: user._id, username: user.username, email: user.email, role: user.role } });
+  } catch (err) {
+    next(err);
+  }
 });
 
-// PUT /api/v1/auth/profile
+/**
+ * POST /api/v1/auth/refresh
+ * Issues new access token using a valid refresh token cookie
+ */
+router.post("/refresh", async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token) return res.status(401).json({ error: "No refresh token" });
+    if (!refreshTokenStore.has(token)) return res.status(403).json({ error: "Refresh token revoked" });
+
+    const decoded = verifyToken(token);
+    const accessToken = signAccessToken({ id: decoded.id });
+    res.json({ token: accessToken });
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid refresh token" });
+  }
+});
+
+/**
+ * POST /api/v1/auth/logout
+ * Revoke refresh token and clear cookie
+ */
+router.post("/logout", (req, res) => {
+  const token = req.cookies.refreshToken;
+  if (token && refreshTokenStore.has(token)) refreshTokenStore.delete(token);
+  res.clearCookie("refreshToken");
+  res.json({ ok: true });
+});
+
+/**
+ * GET /api/v1/auth/profile
+ * Protected route - must send Authorization: Bearer <token>
+ */
+const { requireAuth } = require("../middleware/auth");
+router.get("/profile", requireAuth, async (req, res) => {
+  const user = req.user;
+  res.json({ user: { id: user._id, username: user.username, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role } });
+});
+
+/**
+ * PUT /api/v1/auth/change-password
+ * requires currentPassword + newPassword
+ */
 router.put(
-  "/profile",
+  "/change-password",
   requireAuth,
-  [
-    body("firstName").optional().isLength({ min: 1 }).trim().escape(),
-    body("lastName").optional().isLength({ min: 1 }).trim().escape(),
-    body("email").optional().isEmail().normalizeEmail(),
-    body("currentPassword").optional().isString(),
-    body("newPassword").optional().isLength({ min: 8 }).withMessage("newPassword must be 8+ chars"),
-  ],
-  async (req, res, next) => {
-    try {
-      const validationError = handleValidationErrors(req, res);
-      if (validationError) return;
+  body("currentPassword").notEmpty(),
+  body("newPassword").isLength({ min: 8 }),
+  async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user._id);
+    const ok = await user.comparePassword(currentPassword);
+    if (!ok) return res.status(401).json({ error: "Current password incorrect" });
 
-      const user = req.user;
-      const { firstName, lastName, email, currentPassword, newPassword } = req.body;
-
-      // If changing sensitive info (email or password) require currentPassword
-      if ((email || newPassword) && !currentPassword) {
-        return res.status(400).json({ error: true, message: "Current password required to change email/password" });
-      }
-
-      if (currentPassword) {
-        const ok = await bcrypt.compare(currentPassword, user.password);
-        if (!ok) return res.status(401).json({ error: true, message: "Current password incorrect" });
-      }
-
-      if (firstName) user.firstName = firstName;
-      if (lastName) user.lastName = lastName;
-      if (email) user.email = email;
-      if (newPassword) user.password = await bcrypt.hash(newPassword, 10);
-
-      await user.save();
-      const userToReturn = user.toObject();
-      delete userToReturn.password;
-
-      res.json({ user: userToReturn });
-    } catch (err) {
-      next(err);
-    }
+    user.password = newPassword; // will be hashed in pre-save hook
+    await user.save();
+    res.json({ ok: true });
   }
 );
 
