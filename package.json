@@ -1,12 +1,15 @@
 {
   "name": "node-learning",
   "version": "1.0.0",
-  "description": "Node.js learning project - Task 20 security & validation",
+  "description": "Node.js learning project - Tasks 16-21 (DB, Auth, UX & Discovery)",
   "main": "src/express-server.js",
   "scripts": {
     "start": "node src/express-server.js",
     "dev": "nodemon src/express-server.js",
-    "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles"
+    "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles",
+    "db:migrate": "node src/scripts/migrate.js",
+    "db:seed": "node src/scripts/seed.js",
+    "db:drop": "node src/scripts/drop.js"
   },
   "keywords": [],
   "author": "Asad Nouman",
@@ -22,8 +25,9 @@
     "express-validator": "^7.0.1",
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^7.6.1",
-    "winston": "^3.17.0"
+    "mongoose": "^8.18.1",
+    "winston": "^3.17.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",

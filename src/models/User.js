@@ -1,28 +1,27 @@
-// src/models/User.js
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+// src/middleware/validate.js
+const currentYear = new Date().getFullYear();
 
-const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true, index: true },
-  email: { type: String, required: true, unique: true, index: true },
-  password: { type: String, required: true },
-  firstName: { type: String },
-  lastName: { type: String },
-  role: { type: String, enum: ["user", "admin", "moderator"], default: "user" },
-  createdAt: { type: Date, default: Date.now }
-});
-
-// Pre-save hashing
-userSchema.pre("save", async function(next) {
-  if (!this.isModified("password")) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+function validateBook(req, res, next) {
+  const { title, author, year, genre } = req.body;
+  const errors = [];
+  if (!title || typeof title !== "string" || title.trim() === "") errors.push("Title required");
+  if (!author || typeof author !== "string" || author.trim() === "") errors.push("Author required");
+  if (year === undefined || typeof year !== "number" || year < 1000 || year > currentYear + 1) errors.push(`Year must be 1000..${currentYear + 1}`);
+  if (genre && typeof genre !== "string") errors.push("Genre must be string");
+  if (errors.length) return res.status(400).json({ error: true, code: "VALIDATION_ERROR", details: errors });
   next();
-});
+}
 
-// method to compare password
-userSchema.methods.comparePassword = function(candidate) {
-  return bcrypt.compare(candidate, this.password);
-};
+function validateUserRegistration(req, res, next) {
+  const { username, email, password, firstName, lastName } = req.body;
+  const errors = [];
+  if (!username || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) errors.push("username must be 3-20 chars, alphanumeric/underscore");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push("valid email required");
+  if (!password || password.length < 8) errors.push("password must be at least 8 chars");
+  if (!firstName || firstName.length < 2) errors.push("firstName required");
+  if (!lastName || lastName.length < 2) errors.push("lastName required");
+  if (errors.length) return res.status(400).json({ error: true, code: "VALIDATION_ERROR", details: errors });
+  next();
+}
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = { validateBook, validateUserRegistration };

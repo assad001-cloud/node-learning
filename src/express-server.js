@@ -5,20 +5,26 @@ const helmet = require("helmet");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
-const { connectDB } = require("./config/database"); // your existing DB connector
+const { connectDB } = require("./config/database");
 const logger = require("./utils/logger");
-
-// routers
+const requestLogger = require("./middleware/logger");
+const errorHandler = require("./middleware/errorHandler");
 const authRoutes = require("./routes/auth");
+const userRoutes = require("./routes/users");
 const bookRoutes = require("./routes/books");
-const userRoutes = require("./routes/users"); // keep if exists
+const apiRoutes = require("./routes/api");
 
 const app = express();
+const PORT = parseInt(process.env.PORT || "3000", 10);
 
-// Security headers (CSP disabled for dev; configure for production)
+// Version header middleware
+app.use((req, res, next) => {
+  res.setHeader("X-API-Version", "v1");
+  next();
+});
+
+// Security
 app.use(helmet({ contentSecurityPolicy: false }));
-
-// CORS - allow frontend origin set via env; allow cookies
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:3001",
@@ -28,65 +34,55 @@ app.use(
   })
 );
 
-// Common middlewares
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+app.use(requestLogger); // structured request logging
 
-// Rate limiting
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || "5", 10),
-  message: { error: "Too many auth attempts, try again later" },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true
-});
-
+// Rate limiters
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MIN || "60", 10) * 60 * 1000,
   max: parseInt(process.env.RATE_LIMIT_MAX || "100", 10),
   standardHeaders: true,
   legacyHeaders: false
 });
 
-app.use("/api/v1/auth", authLimiter);
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || "5", 10),
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 app.use("/api/v1", generalLimiter);
+app.use("/api/v1/auth", authLimiter);
 
-// Mount routes
+// routes
 app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/books", bookRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/books", bookRoutes);
+app.use("/api/v1", apiRoutes);
 
-// Health endpoint
-app.get("/api/v1/health", (req, res) => {
-  res.json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    version: "1.0.0"
-  });
-});
+// 404
+app.use((req, res) => res.status(404).json({ error: true, code: "NOT_FOUND", message: "Endpoint not found" }));
 
-// Not found
-app.use((req, res) => res.status(404).json({ error: "Not Found" }));
+// global error handler
+app.use(errorHandler);
 
-// Global error handler
-app.use((err, req, res, next) => {
-  logger.error(err.message || "Server error", { stack: err.stack });
-  res.status(err.status || 500).json({ error: err.message || "Internal Server Error" });
-});
-
-// Start server & DB (skip if test env; tests will import app directly and connect separately)
-const PORT = parseInt(process.env.PORT || "3000", 10);
+// connect db & start if not testing
 if (process.env.NODE_ENV !== "test") {
   connectDB()
     .then(() => {
+      logger.info("Database connected (server start)");
       app.listen(PORT, () => {
-        logger.info(`Server running on port ${PORT}`);
-        console.log(`Server running on port ${PORT}`);
+        logger.info(`Server started on http://localhost:${PORT}`);
+        // eslint-disable-next-line no-console
+        console.log(`Server started on http://localhost:${PORT}`);
       });
     })
     .catch((err) => {
-      logger.error("Failed DB connect", { message: err.message });
+      logger.error("Failed to connect DB on server start", { message: err.message, stack: err.stack });
       process.exit(1);
     });
 }
