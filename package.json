@@ -1,12 +1,12 @@
 {
   "name": "node-learning",
   "version": "1.0.0",
-  "description": "Node.js learning project - Tasks 16-21 (DB, Auth, UX & Discovery)",
+  "description": "Node.js learning project - Tasks 16-22 (DB, Auth, UX, Discovery, Security, Testing & Monitoring)",
   "main": "src/express-server.js",
   "scripts": {
     "start": "node src/express-server.js",
     "dev": "nodemon src/express-server.js",
-    "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles",
+    "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles --coverage",
     "db:migrate": "node src/scripts/migrate.js",
     "db:seed": "node src/scripts/seed.js",
     "db:drop": "node src/scripts/drop.js"

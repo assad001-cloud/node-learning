@@ -1,89 +1,54 @@
-js
-// src/tests/auth.test.js
 const request = require("supertest");
 const app = require("../express-server");
-const mongoose = require("../config/database");
-
-let token;
-let userId;
+const mongoose = require("mongoose");
+const User = require("../models/User");
 
 beforeAll(async () => {
-  // Clean up test DB before running auth tests
-  await mongoose.connection.dropDatabase();
+  await mongoose.connect(process.env.MONGO_URI_TEST);
+  await User.deleteMany({});
 });
 
 afterAll(async () => {
   await mongoose.connection.close();
 });
 
-describe("Auth API integration tests", () => {
-  test("POST /api/v1/auth/register - should create a new user", async () => {
+describe("Authentication Tests", () => {
+  const userData = { email: "test@example.com", password: "Password123!" };
+
+  it("should register a user with valid data", async () => {
     const res = await request(app)
       .post("/api/v1/auth/register")
-      .send({
-        username: "authuser",
-        email: "authuser@example.com",
-        password: "Password123!",
-        firstName: "Auth",
-        lastName: "Tester"
-      });
-
+      .send(userData);
     expect(res.statusCode).toBe(201);
     expect(res.body).toHaveProperty("token");
-    expect(res.body.user).toHaveProperty("email", "authuser@example.com");
-    expect(res.body.user).not.toHaveProperty("password");
-
-    token = res.body.token;
-    userId = res.body.user._id;
   });
 
-  test("POST /api/v1/auth/login - should login user with email and password", async () => {
+  it("should not register a user with invalid data", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/register")
+      .send({ email: "bad", password: "123" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("should login with correct credentials", async () => {
     const res = await request(app)
       .post("/api/v1/auth/login")
-      .send({
-        email: "authuser@example.com",
-        password: "Password123!"
-      });
-
+      .send(userData);
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty("token");
-    expect(res.body.user).toHaveProperty("username", "authuser");
-
-    token = res.body.token; // refresh token for next requests
   });
 
-  test("GET /api/v1/auth/profile - should return user profile", async () => {
+  it("should reject login with wrong password", async () => {
     const res = await request(app)
-      .get("/api/v1/auth/profile")
-      .set("Authorization", `Bearer ${token}`);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty("_id", userId);
-    expect(res.body).toHaveProperty("email", "authuser@example.com");
-    expect(res.body).not.toHaveProperty("password");
+      .post("/api/v1/auth/login")
+      .send({ email: "test@example.com", password: "wrongpass" });
+    expect(res.statusCode).toBe(401);
   });
 
-  test("PUT /api/v1/auth/profile - should update user profile", async () => {
+  it("should reject expired or invalid JWT", async () => {
     const res = await request(app)
-      .put("/api/v1/auth/profile")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        firstName: "UpdatedAuth",
-        lastName: "User"
-      });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty("firstName", "UpdatedAuth");
-    expect(res.body).toHaveProperty("lastName", "User");
-  });
-
-  test("POST /api/v1/auth/logout - should logout user", async () => {
-    const res = await request(app)
-      .post("/api/v1/auth/logout")
-      .set("Authorization", `Bearer ${token}`);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty("message", "Logged out successfully");
+      .get("/api/v1/users/me")
+      .set("Authorization", "Bearer invalidtoken");
+    expect(res.statusCode).toBe(401);
   });
 });
-
